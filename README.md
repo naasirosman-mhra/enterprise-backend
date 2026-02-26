@@ -21,3 +21,12 @@ Check service status:
 ```bash
 brew services info postgresql@16
 ```
+
+## Prisma Studio (Database UI)
+
+View and edit database tables in the browser:
+```bash
+npx prisma studio
+```
+
+Opens at http://localhost:5555
