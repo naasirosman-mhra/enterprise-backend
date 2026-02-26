@@ -7,6 +7,8 @@ import dotenv from 'dotenv';
 import authRoutes from './routes/auth.routes.js';
 import inventoryRoutes from './routes/inventory.routes.js';
 import categoriesRoutes from './routes/categories.routes.js';
+import dashboardRoutes from './routes/dashboard.routes.js';
+import auditLogRoutes from './routes/auditLog.routes.js';
 
 dotenv.config();
 
@@ -25,6 +27,8 @@ app.get('/api/health', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/inventory', inventoryRoutes);
 app.use('/api/categories', categoriesRoutes);
+app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/audit-log', auditLogRoutes);
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
