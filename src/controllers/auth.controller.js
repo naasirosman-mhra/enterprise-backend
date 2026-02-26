@@ -1,6 +1,7 @@
 import bcrypt from 'bcryptjs';
 import { validationResult } from 'express-validator';
 import prisma from '../utils/prisma.js';
+import cloudinary from '../utils/cloudinary.js';
 import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from '../utils/tokens.js';
 
 function formatErrors(result) {
@@ -115,4 +116,76 @@ export async function refresh(req, res) {
 
 export async function logout(req, res) {
   return res.status(200).json({ success: true, message: 'Logged out successfully', errors: [] });
+}
+
+export async function getProfile(req, res) {
+  try {
+    const user = await prisma.user.findUnique({ where: { id: req.user.userId } });
+    if (!user) return res.status(404).json({ success: false, message: 'User not found', errors: [] });
+    return res.status(200).json({ success: true, message: 'Profile retrieved', data: { user: safeUser(user) }, errors: [] });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ success: false, message: 'Internal server error', errors: [] });
+  }
+}
+
+export async function updateProfile(req, res) {
+  const result = validationResult(req);
+  if (!result.isEmpty()) {
+    return res.status(422).json({ success: false, message: 'Validation failed', errors: formatErrors(result) });
+  }
+
+  const { firstName, lastName, email } = req.body;
+
+  try {
+    if (email) {
+      const existing = await prisma.user.findUnique({ where: { email } });
+      if (existing && existing.id !== req.user.userId) {
+        return res.status(409).json({ success: false, message: 'Email already in use', errors: [] });
+      }
+    }
+
+    const user = await prisma.user.update({
+      where: { id: req.user.userId },
+      data: {
+        ...(firstName && { firstName }),
+        ...(lastName && { lastName }),
+        ...(email && { email }),
+      },
+    });
+
+    return res.status(200).json({ success: true, message: 'Profile updated', data: { user: safeUser(user) }, errors: [] });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ success: false, message: 'Internal server error', errors: [] });
+  }
+}
+
+export async function uploadProfileImage(req, res) {
+  if (!req.file) {
+    return res.status(400).json({ success: false, message: 'No file uploaded', errors: [] });
+  }
+
+  try {
+    const uploadResult = await new Promise((resolve, reject) => {
+      const stream = cloudinary.uploader.upload_stream(
+        { folder: 'inventory-app/profiles', resource_type: 'image' },
+        (error, result) => {
+          if (error) reject(error);
+          else resolve(result);
+        }
+      );
+      stream.end(req.file.buffer);
+    });
+
+    const user = await prisma.user.update({
+      where: { id: req.user.userId },
+      data: { profileImageUrl: uploadResult.secure_url },
+    });
+
+    return res.status(200).json({ success: true, message: 'Profile image updated', data: { user: safeUser(user) }, errors: [] });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ success: false, message: 'Image upload failed', errors: [] });
+  }
 }

@@ -23,3 +23,18 @@ export const loginValidator = [
   body('password')
     .notEmpty().withMessage('Password is required'),
 ];
+
+export const updateProfileValidator = [
+  body('email')
+    .optional()
+    .isEmail().withMessage('Valid email is required')
+    .normalizeEmail(),
+  body('firstName')
+    .optional()
+    .trim()
+    .notEmpty().withMessage('First name cannot be blank'),
+  body('lastName')
+    .optional()
+    .trim()
+    .notEmpty().withMessage('Last name cannot be blank'),
+];
