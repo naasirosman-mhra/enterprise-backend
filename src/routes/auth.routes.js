@@ -1,6 +1,13 @@
 import { Router } from 'express';
-import { register, login, refresh, logout, getProfile, updateProfile, uploadProfileImage } from '../controllers/auth.controller.js';
-import { registerValidator, loginValidator, updateProfileValidator } from '../validators/auth.validators.js';
+import {
+  register, login, refresh, logout,
+  getProfile, updateProfile, uploadProfileImage,
+  forgotPassword, resetPassword,
+} from '../controllers/auth.controller.js';
+import {
+  registerValidator, loginValidator, updateProfileValidator,
+  forgotPasswordValidator, resetPasswordValidator,
+} from '../validators/auth.validators.js';
 import { authenticate } from '../middleware/auth.js';
 import upload from '../middleware/upload.js';
 
@@ -14,5 +21,8 @@ router.post('/logout', authenticate, logout);
 router.get('/profile', authenticate, getProfile);
 router.put('/profile', authenticate, updateProfileValidator, updateProfile);
 router.post('/profile/image', authenticate, upload.single('image'), uploadProfileImage);
+
+router.post('/forgot-password', forgotPasswordValidator, forgotPassword);
+router.post('/reset-password', resetPasswordValidator, resetPassword);
 
 export default router;

@@ -38,3 +38,18 @@ export const updateProfileValidator = [
     .trim()
     .notEmpty().withMessage('Last name cannot be blank'),
 ];
+
+export const forgotPasswordValidator = [
+  body('email')
+    .isEmail().withMessage('Valid email is required')
+    .normalizeEmail(),
+];
+
+export const resetPasswordValidator = [
+  body('token')
+    .notEmpty().withMessage('Token is required'),
+  body('newPassword')
+    .isLength({ min: 8 }).withMessage('Password must be at least 8 characters')
+    .matches(/[A-Z]/).withMessage('Password must contain at least one uppercase letter')
+    .matches(/[0-9]/).withMessage('Password must contain at least one number'),
+];

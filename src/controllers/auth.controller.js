@@ -1,7 +1,9 @@
+import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 import { validationResult } from 'express-validator';
 import prisma from '../utils/prisma.js';
 import cloudinary from '../utils/cloudinary.js';
+import { sendPasswordResetEmail } from '../utils/mailer.js';
 import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from '../utils/tokens.js';
 
 function formatErrors(result) {
@@ -187,5 +189,78 @@ export async function uploadProfileImage(req, res) {
   } catch (err) {
     console.error(err);
     return res.status(500).json({ success: false, message: 'Image upload failed', errors: [] });
+  }
+}
+
+export async function forgotPassword(req, res) {
+  const result = validationResult(req);
+  if (!result.isEmpty()) {
+    return res.status(422).json({ success: false, message: 'Validation failed', errors: formatErrors(result) });
+  }
+
+  // Always return the same response to prevent email enumeration
+  const generic = { success: true, message: 'If that email is registered, a reset link has been sent.', data: {}, errors: [] };
+
+  const { email } = req.body;
+
+  try {
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (!user) return res.status(200).json(generic);
+
+    // Invalidate any existing unused tokens for this user
+    await prisma.passwordResetToken.updateMany({
+      where: { userId: user.id, used: false },
+      data: { used: true },
+    });
+
+    const token = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+
+    await prisma.passwordResetToken.create({
+      data: { userId: user.id, token, expiresAt },
+    });
+
+    const resetLink = `${process.env.FRONTEND_URL}/reset-password?token=${token}`;
+    await sendPasswordResetEmail(email, resetLink);
+
+    return res.status(200).json(generic);
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ success: false, message: 'Internal server error', errors: [] });
+  }
+}
+
+export async function resetPassword(req, res) {
+  const result = validationResult(req);
+  if (!result.isEmpty()) {
+    return res.status(422).json({ success: false, message: 'Validation failed', errors: formatErrors(result) });
+  }
+
+  const { token, newPassword } = req.body;
+
+  try {
+    const record = await prisma.passwordResetToken.findUnique({ where: { token } });
+
+    if (!record || record.used || record.expiresAt < new Date()) {
+      return res.status(400).json({ success: false, message: 'Reset link is invalid or has expired.', errors: [] });
+    }
+
+    const passwordHash = await bcrypt.hash(newPassword, 12);
+
+    await prisma.$transaction([
+      prisma.user.update({
+        where: { id: record.userId },
+        data: { passwordHash },
+      }),
+      prisma.passwordResetToken.update({
+        where: { id: record.id },
+        data: { used: true },
+      }),
+    ]);
+
+    return res.status(200).json({ success: true, message: 'Password reset successful.', data: {}, errors: [] });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ success: false, message: 'Internal server error', errors: [] });
   }
 }
