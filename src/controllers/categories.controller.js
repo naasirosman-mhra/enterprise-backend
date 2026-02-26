@@ -6,8 +6,13 @@ function formatErrors(result) {
 }
 
 export async function listCategories(req, res) {
+  const { search } = req.query;
+  const where = search
+    ? { name: { contains: search, mode: 'insensitive' } }
+    : {};
   try {
     const categories = await prisma.category.findMany({
+      where,
       orderBy: { name: 'asc' },
       include: {
         createdBy: { select: { id: true, firstName: true, lastName: true } },
@@ -28,6 +33,10 @@ export async function getCategory(req, res) {
       include: {
         createdBy: { select: { id: true, firstName: true, lastName: true } },
         _count: { select: { inventoryItems: true } },
+        inventoryItems: {
+          orderBy: { name: 'asc' },
+          select: { id: true, name: true, sku: true, quantity: true, lowStockThreshold: true },
+        },
       },
     });
     if (!category) return res.status(404).json({ success: false, message: 'Category not found', errors: [] });
@@ -50,7 +59,10 @@ export async function createCategory(req, res) {
 
     const category = await prisma.category.create({
       data: { name, description, createdById: req.user.userId },
-      include: { createdBy: { select: { id: true, firstName: true, lastName: true } } },
+      include: {
+        createdBy: { select: { id: true, firstName: true, lastName: true } },
+        _count: { select: { inventoryItems: true } },
+      },
     });
     return res.status(201).json({ success: true, message: 'Category created', data: { category }, errors: [] });
   } catch (err) {
@@ -69,6 +81,10 @@ export async function updateCategory(req, res) {
     const existing = await prisma.category.findUnique({ where: { id: req.params.id } });
     if (!existing) return res.status(404).json({ success: false, message: 'Category not found', errors: [] });
 
+    const isAdmin = req.user.role === 'ADMIN';
+    const isCreator = existing.createdById === req.user.userId;
+    if (!isAdmin && !isCreator) return res.status(403).json({ success: false, message: 'Not authorised to update this category', errors: [] });
+
     if (name && name !== existing.name) {
       const nameTaken = await prisma.category.findUnique({ where: { name } });
       if (nameTaken) return res.status(409).json({ success: false, message: 'Category name already exists', errors: [{ field: 'name', message: 'Name already in use' }] });
@@ -77,7 +93,10 @@ export async function updateCategory(req, res) {
     const category = await prisma.category.update({
       where: { id: req.params.id },
       data: { ...(name && { name }), ...(description !== undefined && { description }) },
-      include: { createdBy: { select: { id: true, firstName: true, lastName: true } } },
+      include: {
+        createdBy: { select: { id: true, firstName: true, lastName: true } },
+        _count: { select: { inventoryItems: true } },
+      },
     });
     return res.status(200).json({ success: true, message: 'Category updated', data: { category }, errors: [] });
   } catch (err) {
@@ -95,7 +114,11 @@ export async function deleteCategory(req, res) {
     if (!category) return res.status(404).json({ success: false, message: 'Category not found', errors: [] });
 
     if (category._count.inventoryItems > 0) {
-      return res.status(409).json({ success: false, message: 'Cannot delete category with existing inventory items', errors: [] });
+      return res.status(400).json({
+        success: false,
+        message: `Cannot delete — this category has ${category._count.inventoryItems} linked item${category._count.inventoryItems === 1 ? '' : 's'}. Reassign or delete them first.`,
+        errors: [],
+      });
     }
 
     const isAdmin = req.user.role === 'ADMIN';
