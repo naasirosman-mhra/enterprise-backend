@@ -10,19 +10,20 @@ import {
 } from '../validators/auth.validators.js';
 import { authenticate } from '../middleware/auth.js';
 import upload from '../middleware/upload.js';
+import { authLimiter } from '../middleware/rateLimiter.js';
 
 const router = Router();
 
-router.post('/register', registerValidator, register);
-router.post('/login', loginValidator, login);
-router.post('/refresh', refresh);
+router.post('/register', authLimiter, registerValidator, register);
+router.post('/login', authLimiter, loginValidator, login);
+router.post('/refresh', authLimiter, refresh);
 router.post('/logout', authenticate, logout);
 
 router.get('/profile', authenticate, getProfile);
 router.put('/profile', authenticate, updateProfileValidator, updateProfile);
 router.post('/profile/image', authenticate, upload.single('image'), uploadProfileImage);
 
-router.post('/forgot-password', forgotPasswordValidator, forgotPassword);
-router.post('/reset-password', resetPasswordValidator, resetPassword);
+router.post('/forgot-password', authLimiter, forgotPasswordValidator, forgotPassword);
+router.post('/reset-password', authLimiter, resetPasswordValidator, resetPassword);
 
 export default router;
