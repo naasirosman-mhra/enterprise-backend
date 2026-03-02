@@ -1,5 +1,7 @@
 # Enterprise Inventory Management — Backend
 
+[![CI](https://github.com/naasirosman-mhra/enterprise-backend/actions/workflows/ci.yml/badge.svg)](https://github.com/naasirosman-mhra/enterprise-backend/actions/workflows/ci.yml)
+
 ## Database (Local PostgreSQL 16)
 
 Start the database:
